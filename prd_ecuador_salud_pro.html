@@ -1,0 +1,43 @@
+# Mega-Prompt: Plataforma Médica Integral "Ecuador-Salud Pro"
+
+## Contexto y Rol
+Actúa como un Lead Software Architect y Consultor Legal en Salud Digital. Construye una aplicación médica completa (Web y Mobile Responsive) diseñada específicamente para el mercado de Ecuador, cumpliendo con las normativas de ACESS, MSP y la Ley Orgánica de Protección de Datos Personales (LODPD).
+
+## 1. ARQUITECTURA DE NEGOCIO Y PAGOS (Ecuador focus)
+* **Modelo de Pago:** Sistema de suscripción mensual para médicos y pago por consulta para pacientes.
+* **Pasarela de Pagos:** Integra (vía API Mock) Kushki y PayPhone (Diners, Alia, Banco Pichincha/Guayaquil).
+* **Facturación:** Generación de facturas electrónicas (XML SRI).
+
+## 2. MÓDULO DE PACIENTES Y SEGURIDAD (LODPD & ACESS)
+* **Registro:** Validación de Cédula de Identidad Ecuatoriana.
+* **Consentimiento Informado:** Pantalla obligatoria de aceptación de términos LODPD.
+* **Directorio:** Búsqueda por especialidad, ciudad y tipo de seguro (IESS, prepagada, privado).
+
+## 3. HISTORIA CLÍNICA DIGITAL (Normativa MSP Formulario 002)
+* **Estructura Dashboard Médico:**
+    * Anamnesis y antecedentes.
+    * Signos vitales con gráficas.
+    * Examen físico por sistemas.
+    * Diagnóstico: Buscador CIE-10.
+    * Plan de tratamiento.
+* **Receta Electrónica:** PDF con QR y espacio para firma electrónica (.p12).
+
+## 4. TELEMEDICINA Y COMUNICACIÓN
+* **Video-Consulta:** Interfaz cifrada con chat.
+* **Notificaciones:** WhatsApp API y SMS.
+
+## 5. ACCESIBILIDAD Y DISEÑO (Normas ACESS)
+* **UI/UX:** Estilo "Enterprise Health" (Veris/Doctorisy).
+* **Colores:** #0056b3 (Azul Médico), #f8f9fa (Fondo Limpio).
+* **Accesibilidad:** WCAG 2.1 nivel AA. Ultra-ligera para 3G/Edge.
+
+## 6. STACK TÉCNICO Y SEGURIDAD
+* **Backend:** PostgreSQL (Pacientes, Medicos, Citas, Historias_Clinicas_002, Pagos_SRI).
+* **Seguridad:** AES-256, 2FA obligatoria para médicos.
+* **Auditoría:** Logs de acceso ACESS.
+
+## ENTREGABLES REQUERIDOS
+* **Frontend:** Login, Dashboard Médico (Agenda y HC), Perfil de Paciente.
+* **Lógica:** CRUD citas, validación de Cédula.
+* **Esquema DB:** Relaciones de integridad HC.
+* **Simulación Pago:** Flujo de pago local.

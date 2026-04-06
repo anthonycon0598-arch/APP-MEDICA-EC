@@ -1,0 +1,37 @@
+# Technical Specification: WhatsApp Automation Module
+
+## 1. Integration Architecture
+- **Provider:** WhatsApp Business API via Twilio or Meta Graph API.
+- **Backend Service:** Node.js service with `node-cron` for scheduled tasks.
+- **Webhooks:** For receiving message status updates (Delivered, Read, Failed).
+
+## 2. Trigger Logic
+| Event | Timing | Content |
+| :--- | :--- | :--- |
+| **Payment Confirmation** | Immediate | Thanks + Date/Time + Google Maps Link (Physical) or Video Link (Virtual). |
+| **24h Reminder** | 24h Before | Professional reminder + Confirmation Link. |
+| **1h Reminder** | 1h Before | Final reminder + Quick Access Link. |
+| **Prescription Ready** | On Close | Secure link to download signed PDF. |
+
+## 3. Message Templates (Spanish - Professional)
+- **Confirmation:** "Hola {{name}}, tu pago ha sido procesado. Tu cita con el Dr. {{lastname}} es el {{date}} a las {{time}}. Link de acceso: {{link}}. Andina Health."
+- **Reminder:** "Hola {{name}}, te recordamos tu cita mañana a las {{time}}. Confirma tu asistencia aquí: {{link}}."
+- **Prescription:** "Hola {{name}}, tu receta médica ya está disponible para descarga segura en: {{link}}. Validez ACESS garantizada."
+
+## 4. Security & Privacy (LODPD)
+- **Zero Sensitive Data:** Messages MUST NOT contain diagnoses, ICD-10 codes, or medication names.
+- **Link Security:** All links point to the secure authenticated portal (https://app.andinaph.com/...) requiring login/2FA if sensitive.
+
+## 5. Cron Job Logic (Pseudo-code)
+```javascript
+// Run every 15 minutes
+cron.schedule('*/15 * * * *', async () => {
+  const upcomingAppointments = await db.appointments.findMany({
+    where: { 
+      scheduledAt: { gte: now, lte: in24Hours },
+      reminderSent: false 
+    }
+  });
+  // Disparar lógica de envío vía WhatsApp API
+});
+```

@@ -1,0 +1,52 @@
+# Technical Specification: CIE-10 Diagnosis System (ICD-10)
+
+## 1. Database Schema (PostgreSQL)
+```sql
+CREATE TABLE CIE10_Catalog (
+    codigo VARCHAR(10) PRIMARY KEY, -- Ej: 'I10', 'E11.9'
+    descripcion TEXT NOT NULL,      -- Ej: 'Hipertensión esencial (primaria)'
+    grupo VARCHAR(255),             -- Ej: 'Enfermedades del sistema circulatorio'
+    search_vector TSVECTOR          -- Para optimización de búsqueda (Fuzzy Search)
+);
+
+-- Indexación para búsqueda rápida por descripción y código
+CREATE INDEX idx_cie10_search ON CIE10_Catalog USING GIN (search_vector);
+CREATE INDEX idx_cie10_code_trgm ON CIE10_Catalog USING gist (codigo gist_trgm_ops);
+```
+
+## 2. API Logic (Search Endpoint)
+**Endpoint:** `GET /api/diagnostics/search?q={query}`
+- **Logic:** Performs a fuzzy search matching the query against both `codigo` and `descripcion`.
+- **Optimization:** Limits results to the top 10 most relevant matches.
+- **Example Response:**
+```json
+[
+  { "codigo": "I10", "descripcion": "Hipertensión esencial (primaria)", "grupo": "Enfermedades hipertensivas" },
+  { "codigo": "E11.9", "descripcion": "Diabetes mellitus no insulinodependiente sin complicaciones", "grupo": "Diabetes mellitus" }
+]
+```
+
+## 3. Data Seeding (Top 20 Ecuador)
+```sql
+INSERT INTO CIE10_Catalog (codigo, descripcion, grupo) VALUES
+('I10', 'Hipertensión esencial (primaria)', 'Enfermedades del sistema circulatorio'),
+('E11', 'Diabetes mellitus no insulinodependiente', 'Enfermedades endocrinas, nutricionales y metabólicas'),
+('J00', 'Rinofaringitis aguda (resfriado común)', 'Enfermedades del sistema respiratorio'),
+('K29', 'Gastritis y duodenitis', 'Enfermedades del sistema digestivo'),
+('N39', 'Otros trastornos del sistema urinario', 'Enfermedades del sistema genitourinario'),
+('Z00', 'Examen general y de investigación de personas sin quejas o sin diagnóstico informado', 'Factores que influyen en el estado de salud'),
+('U07.1', 'COVID-19, virus identificado', 'Códigos para propósitos especiales'),
+('A09', 'Diarrea y gastroenteritis de presunto origen infeccioso', 'Enfermedades infecciosas y parasitarias'),
+('J20', 'Bronquitis aguda', 'Enfermedades del sistema respiratorio'),
+('M54', 'Dorsalgia', 'Enfermedades del sistema osteomuscular'),
+('R51', 'Cefalea', 'Síntomas, señales y hallazgos anormales'),
+('R50', 'Fiebre de origen desconocido', 'Síntomas, señales y hallazgos anormales'),
+('N30', 'Cistitis', 'Enfermedades del sistema genitourinario'),
+('J03', 'Amigdalitis aguda', 'Enfermedades del sistema respiratorio'),
+('L20', 'Dermatitis atópica', 'Enfermedades de la piel y del tejido subcutáneo'),
+('H65', 'Otitis media no supurativa', 'Enfermedades del oído'),
+('K35', 'Apendicitis aguda', 'Enfermedades del sistema digestivo'),
+('B37', 'Candidiasis', 'Enfermedades infecciosas y parasitarias'),
+('O80', 'Parto único espontáneo', 'Embarazo, parto y puerperio'),
+('G44', 'Otros síndromes de cefalea', 'Enfermedades del sistema nervioso');
+```

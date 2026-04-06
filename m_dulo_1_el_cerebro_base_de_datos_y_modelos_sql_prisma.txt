@@ -1,0 +1,192 @@
+-- Schema de Base de Datos para Ecuador-Salud Pro
+-- Cumplimiento: MSP (Formulario 002), SRI (Facturación), ACESS (Auditoría)
+
+-- Extensiones necesarias
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Enum para Roles de Usuario
+CREATE TYPE user_role AS ENUM ('MEDICO', 'PACIENTE', 'ADMIN');
+
+-- Enum para Estados de Cita
+CREATE TYPE appointment_status AS ENUM ('PENDIENTE', 'PAGADA', 'CANCELADA', 'COMPLETADA');
+
+-- Enum para Modalidad de Cita
+CREATE TYPE appointment_mode AS ENUM ('PRESENCIAL', 'VIRTUAL');
+
+-- 1. Tabla de Usuarios
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    cedula VARCHAR(10) UNIQUE NOT NULL, -- Validación lógica de 10 dígitos (algoritmo último dígito)
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    role user_role NOT NULL DEFAULT 'PACIENTE',
+    phone VARCHAR(20),
+    is_2fa_enabled BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. Tabla de Médicos (Extensión de Perfil)
+CREATE TABLE doctors (
+    id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    specialty VARCHAR(100) NOT NULL,
+    license_number VARCHAR(50) UNIQUE NOT NULL, -- Registro ACESS/Senescyt
+    digital_signature_path TEXT, -- Referencia al certificado .p12 (cifrado)
+    consultation_fee DECIMAL(10, 2) NOT NULL,
+    bio TEXT
+);
+
+-- 3. Tabla de Pacientes (Extensión de Perfil)
+CREATE TABLE patients (
+    id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    birth_date DATE NOT NULL,
+    gender VARCHAR(20),
+    blood_type VARCHAR(5),
+    insurance_provider VARCHAR(100), -- IESS, Medicina Prepagada, Privado
+    emergency_contact_name VARCHAR(100),
+    emergency_contact_phone VARCHAR(20)
+);
+
+-- 4. Tabla de Citas
+CREATE TABLE appointments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    doctor_id UUID REFERENCES doctors(id),
+    patient_id UUID REFERENCES patients(id),
+    scheduled_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    status appointment_status DEFAULT 'PENDIENTE',
+    mode appointment_mode DEFAULT 'PRESENCIAL',
+    meeting_link TEXT, -- Para citas virtuales
+    reason_for_visit TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 5. Historia Clínica (MSP Formulario 002)
+CREATE TABLE medical_records (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    appointment_id UUID UNIQUE REFERENCES appointments(id),
+    patient_id UUID REFERENCES patients(id),
+    doctor_id UUID REFERENCES doctors(id),
+    
+    -- Anamnesis y Antecedentes
+    anamnesis TEXT,
+    personal_history TEXT,
+    family_history TEXT,
+    surgical_history TEXT,
+    
+    -- Signos Vitales
+    heart_rate INTEGER,
+    respiratory_rate INTEGER,
+    temperature DECIMAL(4, 2),
+    blood_pressure_systolic INTEGER,
+    blood_pressure_diastolic INTEGER,
+    weight_kg DECIMAL(5, 2),
+    height_cm INTEGER,
+    
+    -- Examen Físico y Diagnóstico
+    physical_exam TEXT,
+    cie10_codes JSONB, -- Array de códigos diagnósticos CIE-10
+    treatment_plan TEXT,
+    evolution_notes TEXT,
+    
+    is_signed BOOLEAN DEFAULT FALSE,
+    signed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 6. Pagos y Facturación SRI
+CREATE TABLE payments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    appointment_id UUID REFERENCES appointments(id),
+    amount DECIMAL(10, 2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'USD',
+    payment_gateway_id VARCHAR(255), -- Kushki/PayPhone Transaction ID
+    payment_status VARCHAR(50),
+    sri_invoice_id VARCHAR(50), -- Número de autorización/acceso SRI (49 dígitos)
+    sri_xml_path TEXT, -- Link al XML de factura electrónica
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 7. Logs de Auditoría (Requisito ACESS)
+CREATE TABLE audit_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id),
+    action VARCHAR(255) NOT NULL,
+    table_name VARCHAR(100),
+    record_id UUID,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-----------------------------------------------------------
+-- Modelos de Prisma (prisma.schema)
+-----------------------------------------------------------
+/*
+model User {
+  id              String         @id @default(uuid())
+  cedula          String         @unique
+  email           String         @unique
+  passwordHash    String
+  firstName       String
+  lastName        String
+  role            Role           @default(PACIENTE)
+  is2faEnabled    Boolean        @default(false)
+  doctorProfile   Doctor?
+  patientProfile  Patient?
+  auditLogs       AuditLog[]
+  createdAt       DateTime       @default(now())
+}
+
+model Doctor {
+  id               String            @id
+  user             User              @relation(fields: [id], references: [id])
+  specialty        String
+  licenseNumber    String            @unique
+  consultationFee  Decimal
+  appointments     Appointment[]
+  medicalRecords   MedicalRecord[]
+}
+
+model Patient {
+  id               String            @id
+  user             User              @relation(fields: [id], references: [id])
+  birthDate        DateTime
+  insurance        String?
+  appointments     Appointment[]
+  medicalRecords   MedicalRecord[]
+}
+
+model Appointment {
+  id               String            @id @default(uuid())
+  doctor           Doctor            @relation(fields: [doctorId], references: [id])
+  doctorId         String
+  patient          Patient           @relation(fields: [patientId], references: [id])
+  patientId        String
+  scheduledAt      DateTime
+  status           Status            @default(PENDIENTE)
+  mode             Mode              @default(PRESENCIAL)
+  medicalRecord    MedicalRecord?
+  payment          Payment?
+}
+
+model MedicalRecord {
+  id               String            @id @default(uuid())
+  appointment      Appointment       @relation(fields: [appointmentId], references: [id])
+  appointmentId    String            @unique
+  cie10Codes       Json
+  anamnesis        String?
+  vitals           Json?             // Estructura para signos vitales
+  isSigned         Boolean           @default(false)
+}
+
+model Payment {
+  id               String            @id @default(uuid())
+  appointment      Appointment       @relation(fields: [appointmentId], references: [id])
+  appointmentId    String            @unique
+  amount           Decimal
+  gatewayId        String?
+  sriInvoiceId     String?
+}
+*/
